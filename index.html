@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Карта Оренбургской области</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <style>
+        #map { height: 90vh; }
+        body { margin: 0; font-family: Arial; }
+        .form { padding: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="form">
+    <input id="name" placeholder="Название">
+    <input id="type" placeholder="Тип">
+    <input id="lat" placeholder="Широта">
+    <input id="lng" placeholder="Долгота">
+    <button onclick="addPlace()">Добавить</button>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+const map = L.map('map').setView([51.768, 55.096], 6);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
+  .addTo(map);
+
+// загрузка данных
+function loadPlaces() {
+    fetch("http://localhost:8000/places")
+    .then(res => res.json())
+    .then(data => {
+        data.forEach(place => {
+            L.marker([place.latitude, place.longitude])
+             .addTo(map)
+             .bindPopup(`<b>${place.name}</b><br>${place.type}`);
+        });
+    });
+}
+
+loadPlaces();
+
+// добавление
+function addPlace() {
+    const place = {
+        name: document.getElementById("name").value,
+        type: document.getElementById("type").value,
+        description: "Описание",
+        latitude: parseFloat(document.getElementById("lat").value),
+        longitude: parseFloat(document.getElementById("lng").value)
+    };
+
+    fetch("http://localhost:8000/places", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(place)
+    })
+    .then(() => location.reload());
+}
+</script>
+
+</body>
+</html>
