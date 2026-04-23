@@ -127,17 +127,17 @@ map.addLayer(new ol.layer.Vector({
     source: vectorSource
 }));
 
-// ===================== COLOR =====================
-function getColor(type) {
-    if (!type) return "gray";
+// ===================== ICON =====================
+function getIcon(type) {
+    if (!type) return "marker-default.png";
 
     type = type.toLowerCase();
 
-    if (type === "природа") return "green";
-    if (type === "история") return "red";
-    if (type === "культура") return "blue";
+    if (type === "природа") return "marker-nature.png";
+    if (type === "история") return "marker-history.png";
+    if (type === "культура") return "marker-culture.png";
 
-    return "gray";
+    return "marker-default.png";
 }
 
 // ===================== LOAD =====================
@@ -179,7 +179,7 @@ function loadPlaces() {
 
             items.forEach(place => {
 
-                // MARKER
+                // MARKER С ИКОНКОЙ
                 const feature = new ol.Feature({
                     geometry: new ol.geom.Point(
                         ol.proj.fromLonLat([place.longitude, place.latitude])
@@ -188,21 +188,16 @@ function loadPlaces() {
                 });
 
                 feature.setStyle(new ol.style.Style({
-                    image: new ol.style.Circle({
-                        radius: 7,
-                        fill: new ol.style.Fill({
-                            color: getColor(place.type)
-                        }),
-                        stroke: new ol.style.Stroke({
-                            color: "#fff",
-                            width: 2
-                        })
+                    image: new ol.style.Icon({
+                        src: getIcon(place.type),
+                        scale: 0.07,
+                        anchor: [0.5, 1]
                     })
                 }));
 
                 vectorSource.addFeature(feature);
 
-                // SIDEBAR ITEM (с фото + описанием)
+                // SIDEBAR ITEM
                 const item = document.createElement("div");
                 item.className = "item";
 
@@ -306,4 +301,4 @@ loadPlaces();
 </script>
 
 </body>
-</html>index_test.html
+</html>
