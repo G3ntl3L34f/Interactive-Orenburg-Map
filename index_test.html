@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Оренбургская область — PRO карта</title>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@7.5.2/ol.css">
+<script src="https://cdn.jsdelivr.net/npm/ol@7.5.2/dist/ol.js"></script>
+
+<style>
+body {
+    margin: 0;
+    font-family: Arial;
+}
+
+#map {
+    width: 100%;
+    height: 100vh;
+}
+
+/* SIDEBAR */
+#sidebar {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 320px;
+    max-height: 90vh;
+    overflow: auto;
+    background: white;
+    padding: 10px;
+    border-radius: 8px;
+    z-index: 1000;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+}
+
+.group {
+    margin-top: 10px;
+    padding-top: 5px;
+    border-top: 1px solid #ddd;
+}
+
+.group-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.item {
+    display: flex;
+    gap: 8px;
+    padding: 6px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+}
+
+.item:hover {
+    background: #f0f0f0;
+}
+
+.item img {
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: 6px;
+}
+
+.text {
+    flex: 1;
+}
+
+.title {
+    font-weight: bold;
+    font-size: 13px;
+}
+
+.desc {
+    font-size: 11px;
+    color: #555;
+}
+
+/* popup */
+.popup {
+    position: absolute;
+    background: white;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    display: none;
+    z-index: 2000;
+    min-width: 200px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="sidebar">
+    <b>📍 Объекты</b>
+    <div id="list"></div>
+</div>
+
+<div id="map"></div>
+<div id="popup" class="popup"></div>
+
+<script>
+
+// ===================== MAP =====================
+const map = new ol.Map({
+    target: 'map',
+    layers: [
+        new ol.layer.Tile({
+            source: new ol.source.OSM()
+        })
+    ],
+    view: new ol.View({
+        center: ol.proj.fromLonLat([55.1, 51.77]),
+        zoom: 6
+    })
+});
+
+// ===================== DATA =====================
+const vectorSource = new ol.source.Vector();
+
+map.addLayer(new ol.layer.Vector({
+    source: vectorSource
+}));
+
+// ===================== COLOR =====================
+function getColor(type) {
+    if (!type) return "gray";
+
+    type = type.toLowerCase();
+
+    if (type === "природа") return "green";
+    if (type === "история") return "red";
+    if (type === "культура") return "blue";
+
+    return "gray";
+}
+
+// ===================== LOAD =====================
+function loadPlaces() {
+
+    vectorSource.clear();
+    const list = document.getElementById("list");
+    list.innerHTML = "";
+
+    fetch("http://localhost:8000/places")
+    .then(r => r.json())
+    .then(data => {
+
+        const groups = {
+            "природа": [],
+            "история": [],
+            "культура": [],
+            "другое": []
+        };
+
+        data.forEach(p => {
+            const t = (p.type || "").toLowerCase();
+            if (groups[t]) groups[t].push(p);
+            else groups["другое"].push(p);
+        });
+
+        for (const [type, items] of Object.entries(groups)) {
+
+            if (!items.length) continue;
+
+            const groupDiv = document.createElement("div");
+            groupDiv.className = "group";
+
+            const title = document.createElement("div");
+            title.className = "group-title";
+            title.innerText = type.toUpperCase();
+
+            groupDiv.appendChild(title);
+
+            items.forEach(place => {
+
+                // MARKER
+                const feature = new ol.Feature({
+                    geometry: new ol.geom.Point(
+                        ol.proj.fromLonLat([place.longitude, place.latitude])
+                    ),
+                    data: place
+                });
+
+                feature.setStyle(new ol.style.Style({
+                    image: new ol.style.Circle({
+                        radius: 7,
+                        fill: new ol.style.Fill({
+                            color: getColor(place.type)
+                        }),
+                        stroke: new ol.style.Stroke({
+                            color: "#fff",
+                            width: 2
+                        })
+                    })
+                }));
+
+                vectorSource.addFeature(feature);
+
+                // SIDEBAR ITEM (с фото + описанием)
+                const item = document.createElement("div");
+                item.className = "item";
+
+                item.innerHTML = `
+                    <img src="${place.photo || 'https://via.placeholder.com/50'}">
+                    <div class="text">
+                        <div class="title">${place.name}</div>
+                        <div class="desc">${place.short_description || ''}</div>
+                    </div>
+                `;
+
+                item.onclick = () => {
+                    map.getView().animate({
+                        center: ol.proj.fromLonLat([place.longitude, place.latitude]),
+                        zoom: 9,
+                        duration: 800
+                    });
+                };
+
+                groupDiv.appendChild(item);
+            });
+
+            list.appendChild(groupDiv);
+        }
+
+    });
+}
+
+// ===================== POPUP =====================
+const popup = document.getElementById("popup");
+
+map.on("click", function(evt) {
+
+    popup.style.display = "none";
+
+    map.forEachFeatureAtPixel(evt.pixel, function(feature) {
+
+        const d = feature.get("data");
+        if (!d) return;
+
+        const coord = feature.getGeometry().getCoordinates();
+        const pixel = map.getPixelFromCoordinate(coord);
+
+        popup.style.left = pixel[0] + "px";
+        popup.style.top = (pixel[1] - 80) + "px";
+        popup.style.display = "block";
+
+        popup.innerHTML = `
+            <div style="width:220px">
+
+                <img src="${d.photo || 'https://via.placeholder.com/220x120'}"
+                     style="width:100%; height:120px; object-fit:cover; border-radius:8px; margin-bottom:8px;">
+
+                <b>${d.name}</b><br>
+                <i>${d.type}</i><br><br>
+
+                <div style="font-size:12px; color:#444;">
+                    ${d.description}
+                </div>
+
+            </div>
+        `;
+    });
+});
+
+// ===================== REGION =====================
+fetch("orenburg.geojson")
+.then(r => r.json())
+.then(data => {
+
+    const format = new ol.format.GeoJSON();
+
+    const features = format.readFeatures(data, {
+        featureProjection: "EPSG:3857"
+    });
+
+    const region = new ol.layer.Vector({
+        source: new ol.source.Vector({ features }),
+        style: new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: "yellow",
+                width: 2
+            }),
+            fill: new ol.style.Fill({
+                color: "rgba(0,0,0,0.0)"
+            })
+        })
+    });
+
+    map.addLayer(region);
+
+    map.getView().fit(region.getSource().getExtent(), {
+        padding: [40,40,40,40]
+    });
+
+});
+
+// START
+loadPlaces();
+
+</script>
+
+</body>
+</html>

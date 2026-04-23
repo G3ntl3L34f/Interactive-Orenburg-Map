@@ -17,7 +17,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Dependency
 def get_db():
     db = SessionLocal()
     try:
@@ -25,7 +24,6 @@ def get_db():
     finally:
         db.close()
 
-# Получить все места
 @app.get("/places", response_model=list[schemas.Place])
 def get_places(db: Session = Depends(get_db)):
     return db.query(models.Place).all()
@@ -40,7 +38,7 @@ def root():
         }
     }
 
-# Добавить место
+
 @app.post("/places", response_model=schemas.Place)
 def create_place(place: schemas.PlaceCreate, db: Session = Depends(get_db)):
     db_place = models.Place(**place.dict())
@@ -49,7 +47,7 @@ def create_place(place: schemas.PlaceCreate, db: Session = Depends(get_db)):
     db.refresh(db_place)
     return db_place
 
-# Удалить
+
 @app.delete("/places/{place_id}")
 def delete_place(place_id: int, db: Session = Depends(get_db)):
     place = db.query(models.Place).get(place_id)

@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 import models
 
-# создаём таблицы (если ещё не созданы)
+
 models.Base.metadata.create_all(bind=engine)
 
 def seed_data():
