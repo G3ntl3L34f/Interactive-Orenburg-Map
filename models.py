@@ -10,3 +10,4 @@ class Place(Base):
     description = Column(Text)
     latitude = Column(Float)
     longitude = Column(Float)
+    photo = Column(String, nullable=True)
