@@ -8,6 +8,7 @@
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="icon" href="favicon.ico" type="image/x-icon">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@7.5.2/ol.css">
 <script src="https://cdn.jsdelivr.net/npm/ol@7.5.2/dist/ol.js"></script>
 
 <style>
@@ -91,6 +92,33 @@ body {
     z-index: 2000;
     min-width: 200px;
 }
+
+/* LEGEND */
+#legend {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    z-index: 1000;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid white;
+}
 </style>
 </head>
 
@@ -103,6 +131,22 @@ body {
 
 <div id="map"></div>
 <div id="popup" class="popup"></div>
+
+<div id="legend">
+    <b style="display:block; margin-bottom:8px;">📍 Легенда</b>
+    <div class="legend-item">
+        <div class="legend-dot" style="background:#22c55e;"></div>
+        <span>Природа</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-dot" style="background:#8b5cf6;"></div>
+        <span>История</span>
+    </div>
+    <div class="legend-item">
+        <div class="legend-dot" style="background:#f59e0b;"></div>
+        <span>Культура</span>
+    </div>
+</div>
 
 <script>
 
@@ -129,15 +173,22 @@ map.addLayer(new ol.layer.Vector({
 
 // ===================== ICON =====================
 function getIcon(type) {
-    if (!type) return "marker-default.png";
+    let iconFile = "marker-default.png";
 
-    type = type.toLowerCase();
+    if (type) {
+        const typeKey = type.toLowerCase();
+        if (typeKey === "природа") iconFile = "marker-nature.png";
+        else if (typeKey === "история") iconFile = "marker-history.png";
+        else if (typeKey === "культура") iconFile = "marker-culture.png";
+    }
 
-    if (type === "природа") return "marker-nature.png";
-    if (type === "история") return "marker-history.png";
-    if (type === "культура") return "marker-culture.png";
-
-    return "marker-default.png";
+    return new ol.style.Style({
+        image: new ol.style.Icon({
+            src: "/" + iconFile,
+            scale: 0.05,
+            anchor: [0.5, 1]
+        })
+    });
 }
 
 // ===================== LOAD =====================
@@ -145,11 +196,18 @@ function loadPlaces() {
 
     vectorSource.clear();
     const list = document.getElementById("list");
-    list.innerHTML = "";
+    list.innerHTML = "<p style='color:#999'>Загрузка...</p>";
 
-    fetch("http://localhost:8000/places")
-    .then(r => r.json())
+    fetch("http://localhost:8000/api/places")
+    .then(r => {
+        if (!r.ok) throw new Error(`Ошибка API: ${r.status}`);
+        return r.json();
+    })
     .then(data => {
+        if (!data || data.length === 0) {
+            list.innerHTML = "<p style='color:#f00'>Нет данных. Запустите: python seed_data.py</p>";
+            return;
+        }
 
         const groups = {
             "природа": [],
@@ -163,6 +221,8 @@ function loadPlaces() {
             if (groups[t]) groups[t].push(p);
             else groups["другое"].push(p);
         });
+
+        list.innerHTML = "";
 
         for (const [type, items] of Object.entries(groups)) {
 
@@ -187,13 +247,7 @@ function loadPlaces() {
                     data: place
                 });
 
-                feature.setStyle(new ol.style.Style({
-                    image: new ol.style.Icon({
-                        src: getIcon(place.type),
-                        scale: 0.07,
-                        anchor: [0.5, 1]
-                    })
-                }));
+                feature.setStyle(getIcon(place.type));
 
                 vectorSource.addFeature(feature);
 
@@ -202,10 +256,10 @@ function loadPlaces() {
                 item.className = "item";
 
                 item.innerHTML = `
-                    <img src="${place.photo || 'https://via.placeholder.com/50'}">
+                    <img src="${place.photo || 'https://via.placeholder.com/50'}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2250%22 height=%2250%22%3E%3Crect fill=%22%23ddd%22 width=%2250%22 height=%2250%22/%3E%3C/svg%3E'">
                     <div class="text">
                         <div class="title">${place.name}</div>
-                        <div class="desc">${place.short_description || ''}</div>
+                        <div class="desc">${place.description || ''}</div>
                     </div>
                 `;
 
@@ -223,6 +277,11 @@ function loadPlaces() {
             list.appendChild(groupDiv);
         }
 
+        console.log("✅ Данные загружены:", data.length, "объектов");
+    })
+    .catch(err => {
+        console.error("❌ Ошибка загрузки:", err);
+        list.innerHTML = `<p style='color:#f00'>❌ Ошибка: ${err.message}<br>Проверьте, запущен ли сервер на http://localhost:8000</p>`;
     });
 }
 
@@ -249,7 +308,8 @@ map.on("click", function(evt) {
             <div style="width:220px">
 
                 <img src="${d.photo || 'https://via.placeholder.com/220x120'}"
-                     style="width:100%; height:120px; object-fit:cover; border-radius:8px; margin-bottom:8px;">
+                     style="width:100%; height:120px; object-fit:cover; border-radius:8px; margin-bottom:8px;"
+                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22220%22 height=%22120%22%3E%3Crect fill=%22%23ddd%22 width=%22220%22 height=%22120%22/%3E%3C/svg%3E'">
 
                 <b>${d.name}</b><br>
                 <i>${d.type}</i><br><br>
@@ -265,7 +325,10 @@ map.on("click", function(evt) {
 
 // ===================== REGION =====================
 fetch("orenburg.geojson")
-.then(r => r.json())
+.then(r => {
+    if (!r.ok) throw new Error(`GeoJSON не найден: ${r.status}`);
+    return r.json();
+})
 .then(data => {
 
     const format = new ol.format.GeoJSON();
@@ -293,7 +356,9 @@ fetch("orenburg.geojson")
         padding: [40,40,40,40]
     });
 
-});
+    console.log("✅ GeoJSON загружена");
+})
+.catch(err => console.warn("⚠️ Границы не загружены:", err.message));
 
 // START
 loadPlaces();

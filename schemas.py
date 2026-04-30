@@ -6,6 +6,7 @@ class PlaceBase(BaseModel):
     description: str
     latitude: float
     longitude: float
+    photo: str = None
 
 class PlaceCreate(PlaceBase):
     pass
