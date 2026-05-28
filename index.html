@@ -172,9 +172,12 @@ const map = new ol.Map({
 // ===================== DATA =====================
 const vectorSource = new ol.source.Vector();
 
-map.addLayer(new ol.layer.Vector({
-    source: vectorSource
-}));
+const markerLayer = new ol.layer.Vector({
+    source: vectorSource,
+    zIndex: 1000
+});
+
+map.addLayer(markerLayer);
 
 // ===================== ICON =====================
 function getIcon(type) {
@@ -328,52 +331,41 @@ map.on("click", function(evt) {
     });
 });
 
-// ===================== REGION + BLACK MASK =====================
-fetch("orenburg.geojson")
-.then(r => {
-    if (!r.ok) throw new Error(`GeoJSON не найден: ${r.status}`);
-    return r.json();
-})
-.then(data => {
+Promise.all([
+    fetch("orenburg.geojson").then(r => r.json()),
+    fetch("oblasti.geojson").then(r => r.json())
+])
+.then(([regionData, districtData]) => {
 
     const format = new ol.format.GeoJSON();
 
-    const features = format.readFeatures(data, {
+    // ===== ОБЛАСТЬ =====
+    const regionFeatures = format.readFeatures(regionData, {
         featureProjection: "EPSG:3857"
     });
 
+    const regionFeature = regionFeatures[0];
+    const regionGeom = regionFeature.getGeometry();
+
+    // ===== РАЙОНЫ =====
+    const districtFeatures = format.readFeatures(districtData, {
+        featureProjection: "EPSG:3857"
+    });
+
+    // ==========================
+    // BLACK MASK
+    // ==========================
+
+    const worldExtent =
+        ol.proj.get("EPSG:3857").getExtent();
+
     const maskFeatures = [];
 
-    // Границы мира в EPSG:3857
-    const worldExtent = ol.proj.get("EPSG:3857").getExtent();
+    if (regionGeom instanceof ol.geom.Polygon) {
 
-    features.forEach(feature => {
-
-        const geom = feature.getGeometry();
-
-        if (geom instanceof ol.geom.Polygon) {
-
-            const mask = new ol.geom.Polygon([
-                [
-                    [worldExtent[0], worldExtent[1]],
-                    [worldExtent[2], worldExtent[1]],
-                    [worldExtent[2], worldExtent[3]],
-                    [worldExtent[0], worldExtent[3]],
-                    [worldExtent[0], worldExtent[1]]
-                ],
-                ...geom.getCoordinates()
-            ]);
-
-            maskFeatures.push(
-                new ol.Feature(mask)
-            );
-        }
-
-        if (geom instanceof ol.geom.MultiPolygon) {
-
-            geom.getPolygons().forEach(poly => {
-
-                const mask = new ol.geom.Polygon([
+        maskFeatures.push(
+            new ol.Feature(
+                new ol.geom.Polygon([
                     [
                         [worldExtent[0], worldExtent[1]],
                         [worldExtent[2], worldExtent[1]],
@@ -381,17 +373,33 @@ fetch("orenburg.geojson")
                         [worldExtent[0], worldExtent[3]],
                         [worldExtent[0], worldExtent[1]]
                     ],
-                    ...poly.getCoordinates()
-                ]);
+                    ...regionGeom.getCoordinates()
+                ])
+            )
+        );
+    }
 
-                maskFeatures.push(
-                    new ol.Feature(mask)
-                );
-            });
-        }
-    });
+    if (regionGeom instanceof ol.geom.MultiPolygon) {
 
-    // Чёрная маска
+        regionGeom.getPolygons().forEach(poly => {
+
+            maskFeatures.push(
+                new ol.Feature(
+                    new ol.geom.Polygon([
+                        [
+                            [worldExtent[0], worldExtent[1]],
+                            [worldExtent[2], worldExtent[1]],
+                            [worldExtent[2], worldExtent[3]],
+                            [worldExtent[0], worldExtent[3]],
+                            [worldExtent[0], worldExtent[1]]
+                        ],
+                        ...poly.getCoordinates()
+                    ])
+                )
+            );
+        });
+    }
+
     const maskLayer = new ol.layer.Vector({
         source: new ol.source.Vector({
             features: maskFeatures
@@ -399,22 +407,45 @@ fetch("orenburg.geojson")
         style: new ol.style.Style({
             fill: new ol.style.Fill({
                 color: "rgba(0,0,0,0.85)"
-            }),
-            stroke: null
+            })
         })
     });
 
     map.addLayer(maskLayer);
 
-    // Контур области поверх маски
-    const regionLayer = new ol.layer.Vector({
+    // ==========================
+    // РАЙОНЫ
+    // ==========================
+
+    const districtLayer = new ol.layer.Vector({
         source: new ol.source.Vector({
-            features
+            features: districtFeatures
         }),
         style: new ol.style.Style({
             stroke: new ol.style.Stroke({
-                color: "#ff0000",
+                color: "#ff6332",
                 width: 3
+            }),
+            fill: new ol.style.Fill({
+                color: "rgba(0,0,0,0)"
+            })
+        })
+    });
+
+    map.addLayer(districtLayer);
+
+    // ==========================
+    // ВНЕШНЯЯ ГРАНИЦА ОБЛАСТИ
+    // ==========================
+
+    const regionLayer = new ol.layer.Vector({
+        source: new ol.source.Vector({
+            features: regionFeatures
+        }),
+        style: new ol.style.Style({
+            stroke: new ol.style.Stroke({
+                color: "#ffdf32",
+                width: 7
             }),
             fill: new ol.style.Fill({
                 color: "rgba(0,0,0,0)"
@@ -424,40 +455,35 @@ fetch("orenburg.geojson")
 
     map.addLayer(regionLayer);
 
-const regionExtent = regionLayer.getSource().getExtent();
+    // ==========================
+    // ОГРАНИЧЕНИЕ КАРТЫ
+    // ==========================
 
-const width = regionExtent[2] - regionExtent[0];
-const height = regionExtent[3] - regionExtent[1];
+    const extent = regionLayer
+        .getSource()
+        .getExtent();
 
-const restrictedExtent = [
-    regionExtent[0],
-    regionExtent[1],
-    regionExtent[2],
-    regionExtent[3]
-];
+    map.setView(new ol.View({
+        center: ol.extent.getCenter(extent),
+        zoom: 6,
+        minZoom: 6,
+        maxZoom: 14,
+        extent: extent,
+        constrainOnlyCenter: true,
+        smoothExtentConstraint: false
+    }));
 
-const currentZoom = view.getZoom();
+    map.getView().fit(extent, {
+        padding: [40,40,40,40],
+        duration: 500,
+        maxZoom: 8
+    });
 
-map.setView(new ol.View({
-    center: ol.extent.getCenter(regionExtent),
-    zoom: currentZoom,
-    minZoom: 6,
-    maxZoom: 14,
-    extent: restrictedExtent,
-    constrainOnlyCenter: true,
-    smoothExtentConstraint: false
-}));
-
-map.getView().fit(regionExtent, {
-    padding: [40, 40, 40, 40],
-    duration: 500,
-    maxZoom: 8
-});
-
-    console.log("✅ GeoJSON загружена");
+    console.log("✅ Область и районы загружены");
 })
-.catch(err => console.warn("⚠️ Границы не загружены:", err.message));
-
+.catch(err => {
+    console.error(err);
+});
 
 // START
 loadPlaces();
