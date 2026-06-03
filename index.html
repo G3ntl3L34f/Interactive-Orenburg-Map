@@ -159,15 +159,40 @@ const view = new ol.View({
     constrainOnlyCenter: true
 });
 
+const blurLayer = new ol.layer.Tile({
+    source: new ol.source.OSM()
+});
+
+
+blurLayer.on('prerender', function (e) {
+    const ctx = e.context;
+    if (ctx) {
+        ctx.filter = 'blur(4px)';
+    }
+});
+
+blurLayer.on('postrender', function (e) {
+    const ctx = e.context;
+    if (ctx) {
+        ctx.filter = 'none';
+    }
+});
+
+
+
+const clearLayer = new ol.layer.Tile({
+    source: new ol.source.OSM()
+});
+
 const map = new ol.Map({
     target: 'map',
     layers: [
-        new ol.layer.Tile({
-            source: new ol.source.OSM()
-        })
+        blurLayer,
+        clearLayer
     ],
     view: view
 });
+
 
 // ===================== DATA =====================
 const vectorSource = new ol.source.Vector();
@@ -347,13 +372,38 @@ Promise.all([
     const regionFeature = regionFeatures[0];
     const regionGeom = regionFeature.getGeometry();
 
+clearLayer.on('prerender', function (event) {
+
+    const ctx = event.context;
+    const vectorContext =
+        ol.render.getVectorContext(event);
+
+    ctx.save();
+
+    vectorContext.setStyle(
+        new ol.style.Style({
+            fill: new ol.style.Fill({
+                color: 'black'
+            })
+        })
+    );
+
+    vectorContext.drawGeometry(regionGeom);
+
+    ctx.clip();
+});
+clearLayer.on('postrender', function (event) {
+    event.context.restore();
+});
+
+
     // ===== РАЙОНЫ =====
     const districtFeatures = format.readFeatures(districtData, {
         featureProjection: "EPSG:3857"
     });
 
     // ==========================
-    // BLACK MASK
+    // MASK
     // ==========================
 
     const worldExtent =
@@ -406,7 +456,7 @@ Promise.all([
         }),
         style: new ol.style.Style({
             fill: new ol.style.Fill({
-                color: "rgba(0,0,0,0.85)"
+                color: "rgba(0,0,0,0.5)"
             })
         })
     });
@@ -445,7 +495,7 @@ Promise.all([
         style: new ol.style.Style({
             stroke: new ol.style.Stroke({
                 color: "#ffdf32",
-                width: 7
+                width: 4
             }),
             fill: new ol.style.Fill({
                 color: "rgba(0,0,0,0)"
