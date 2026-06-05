@@ -6,8 +6,6 @@ models.Base.metadata.create_all(bind=engine)
 
 def seed_data():
     db: Session = SessionLocal()
-
-    # 🗑️ Очищаем старые данные перед добавлением новых
     db.query(models.Place).delete()
     db.commit()
     print("🗑️ Старые данные удалены")
