@@ -56,9 +56,6 @@ def delete_place(place_id: int, db: Session = Depends(get_db)):
         db.commit()
     return {"message": "deleted"}
 
-
-# Служение статических файлов (фото, CSS, JS)
-# ВАЖНО: должно быть в КОНЦЕ после всех маршрутов API!
 current_dir = os.path.dirname(os.path.abspath(__file__))
 app.mount("/static", StaticFiles(directory=os.path.join(current_dir, "static")), name="static")
 app.mount("/", StaticFiles(directory=current_dir, html=True), name="root")
