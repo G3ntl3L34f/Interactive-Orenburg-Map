@@ -22,7 +22,6 @@ body {
     height: 100vh;
 }
 
-/* SIDEBAR */
 #sidebar {
     position: absolute;
     top: 10px;
@@ -81,7 +80,7 @@ body {
     color: #555;
 }
 
-/* popup */
+
 .popup {
     position: absolute;
     background: white;
@@ -93,7 +92,7 @@ body {
     min-width: 200px;
 }
 
-/* LEGEND */
+
 #legend {
     position: absolute;
     bottom: 20px;
@@ -150,7 +149,6 @@ body {
 
 <script>
 
-// ===================== MAP =====================
 const view = new ol.View({
     center: ol.proj.fromLonLat([55.1, 51.77]),
     zoom: 6,
@@ -194,7 +192,6 @@ const map = new ol.Map({
 });
 
 
-// ===================== DATA =====================
 const vectorSource = new ol.source.Vector();
 
 const markerLayer = new ol.layer.Vector({
@@ -204,7 +201,6 @@ const markerLayer = new ol.layer.Vector({
 
 map.addLayer(markerLayer);
 
-// ===================== ICON =====================
 function getIcon(type) {
     let iconFile = "marker-default.png";
 
@@ -224,7 +220,6 @@ function getIcon(type) {
     });
 }
 
-// ===================== LOAD =====================
 function loadPlaces() {
 
     vectorSource.clear();
@@ -272,7 +267,6 @@ function loadPlaces() {
 
             items.forEach(place => {
 
-                // MARKER С ИКОНКОЙ
                 const feature = new ol.Feature({
                     geometry: new ol.geom.Point(
                         ol.proj.fromLonLat([place.longitude, place.latitude])
@@ -284,7 +278,6 @@ function loadPlaces() {
 
                 vectorSource.addFeature(feature);
 
-                // SIDEBAR ITEM
                 const item = document.createElement("div");
                 item.className = "item";
 
@@ -318,7 +311,6 @@ function loadPlaces() {
     });
 }
 
-// ===================== POPUP =====================
 const popup = document.getElementById("popup");
 
 map.on("click", function(evt) {
@@ -364,7 +356,6 @@ Promise.all([
 
     const format = new ol.format.GeoJSON();
 
-    // ===== ОБЛАСТЬ =====
     const regionFeatures = format.readFeatures(regionData, {
         featureProjection: "EPSG:3857"
     });
@@ -397,14 +388,10 @@ clearLayer.on('postrender', function (event) {
 });
 
 
-    // ===== РАЙОНЫ =====
     const districtFeatures = format.readFeatures(districtData, {
         featureProjection: "EPSG:3857"
     });
 
-    // ==========================
-    // MASK
-    // ==========================
 
     const worldExtent =
         ol.proj.get("EPSG:3857").getExtent();
@@ -463,10 +450,6 @@ clearLayer.on('postrender', function (event) {
 
     map.addLayer(maskLayer);
 
-    // ==========================
-    // РАЙОНЫ
-    // ==========================
-
     const districtLayer = new ol.layer.Vector({
         source: new ol.source.Vector({
             features: districtFeatures
@@ -484,10 +467,6 @@ clearLayer.on('postrender', function (event) {
 
     map.addLayer(districtLayer);
 
-    // ==========================
-    // ВНЕШНЯЯ ГРАНИЦА ОБЛАСТИ
-    // ==========================
-
     const regionLayer = new ol.layer.Vector({
         source: new ol.source.Vector({
             features: regionFeatures
@@ -504,10 +483,6 @@ clearLayer.on('postrender', function (event) {
     });
 
     map.addLayer(regionLayer);
-
-    // ==========================
-    // ОГРАНИЧЕНИЕ КАРТЫ
-    // ==========================
 
     const extent = regionLayer
         .getSource()
@@ -535,7 +510,6 @@ clearLayer.on('postrender', function (event) {
     console.error(err);
 });
 
-// START
 loadPlaces();
 
 </script>
